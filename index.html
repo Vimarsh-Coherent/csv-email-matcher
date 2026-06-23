@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EmailMatch · Match verified emails to people</title>
+<meta name="description" content="Match verified emails to the right people and export a clean CSV — all in your browser." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✉️</text></svg>" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0d12; --bg2:#0f1320; --card:#141926; --card2:#1a2030;
+    --line:#262d3d; --line2:#333c50;
+    --fg:#eef1f7; --mut:#9098ab; --mut2:#69718a;
+    --accent:#5b8cff; --accent2:#7c5bff; --good:#34d399; --warn:#fbbf24; --bad:#f87171;
+    --shadow:0 10px 40px -12px rgba(0,0,0,.6);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--fg);
+    background:
+      radial-gradient(900px 500px at 12% -8%, rgba(91,140,255,.16), transparent 60%),
+      radial-gradient(800px 460px at 100% 0%, rgba(124,91,255,.14), transparent 55%),
+      var(--bg);
+    min-height:100vh;
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:40px 22px 90px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+  .brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-size:16px;box-shadow:var(--shadow)}
+  .hero{margin:34px 0 30px}
+  .hero h1{font-size:34px;line-height:1.12;margin:0 0 12px;letter-spacing:-.6px}
+  .hero h1 .grad{background:linear-gradient(120deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{margin:0;color:var(--mut);max-width:620px;font-size:16px}
+  .pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);background:rgba(255,255,255,.04);border:1px solid var(--line);padding:5px 11px;border-radius:999px;margin-bottom:18px}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 10px var(--good)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid{grid-template-columns:1fr}.hero h1{font-size:27px}}
+  .card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:var(--r);padding:20px;box-shadow:var(--shadow)}
+  .step{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .num{width:24px;height:24px;border-radius:7px;background:var(--card2);border:1px solid var(--line2);display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--accent)}
+  .card h3{margin:0;font-size:15px}
+  .card .hint{margin:6px 0 14px;color:var(--mut2);font-size:12.5px}
+  .card code{background:rgba(255,255,255,.05);border:1px solid var(--line);padding:1px 6px;border-radius:5px;font-size:11.5px;color:var(--mut)}
+
+  .drop{position:relative;border:1.6px dashed var(--line2);border-radius:11px;padding:26px 16px;text-align:center;color:var(--mut);cursor:pointer;transition:.16s;font-size:13px}
+  .drop .ic{font-size:26px;display:block;margin-bottom:8px;opacity:.8}
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--fg);background:rgba(91,140,255,.07)}
+  .drop.set{border-style:solid;border-color:var(--good);background:rgba(52,211,153,.07)}
+  .drop.set .ic{opacity:1}
+  .drop .fname{color:var(--good);font-weight:600;word-break:break-all}
+  .drop .meta{display:block;margin-top:3px;color:var(--mut2);font-size:11.5px}
+  input[type=file]{display:none}
+
+  .controls{margin:24px 0 6px;display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+  .opt{display:flex;align-items:center;gap:9px;color:var(--mut);font-size:13px}
+  .opt input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+  .opt input[type=range]{accent-color:var(--accent);width:120px}
+  .opt .v{min-width:26px;text-align:center;color:var(--fg);font-variant-numeric:tabular-nums;background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12px}
+  .help{color:var(--mut2);cursor:help;border:1px solid var(--line2);border-radius:50%;width:15px;height:15px;display:inline-grid;place-items:center;font-size:10px}
+
+  .actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:20px}
+  .btn{display:inline-flex;align-items:center;gap:9px;border:0;border-radius:11px;padding:13px 24px;font-size:15px;font-weight:650;cursor:pointer;transition:.14s;font-family:inherit}
+  .btn.primary{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 8px 24px -8px rgba(91,140,255,.7)}
+  .btn.primary:hover:not(:disabled){transform:translateY(-1px)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--fg)}
+  .btn.ghost:hover{border-color:var(--accent);color:var(--accent)}
+  .err{color:var(--bad);font-size:13px;margin-top:12px;min-height:1px}
+
+  .results{margin-top:34px;opacity:0;transform:translateY(8px);transition:.3s}
+  .results.show{opacity:1;transform:none}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+  @media(max-width:620px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .stat b{display:block;font-size:28px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+  .stat.good b{color:var(--good)} .stat.mut b{color:var(--mut)}
+  .stat span{color:var(--mut2);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .panel-head h3{margin:0;font-size:14px}
+  .search{background:var(--bg2);border:1px solid var(--line2);border-radius:9px;padding:8px 12px;color:var(--fg);font:13px inherit;min-width:200px}
+  .search::placeholder{color:var(--mut2)}
+  .tscroll{max-height:440px;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{position:sticky;top:0;background:var(--card2);color:var(--mut);text-align:left;font-weight:600;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:1}
+  td{padding:9px 14px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  tbody tr:hover{background:rgba(255,255,255,.025)}
+  td.em a{color:var(--good);text-decoration:none}
+  td.em a:hover{text-decoration:underline}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--mut)}
+  .tag.verified{color:var(--good);border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.08)}
+  .tag.confidential{color:var(--warn);border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08)}
+  .empty{padding:30px;text-align:center;color:var(--mut2)}
+
+  footer{margin-top:40px;color:var(--mut2);font-size:12.5px;text-align:center}
+  footer a{color:var(--mut)}
+  .hide{display:none!important}
+  .spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="logo">✉</span> EmailMatch</div>
+
+  <div class="hero">
+    <span class="pill"><span class="dot"></span> 100% in your browser · nothing uploaded</span>
+    <h1>Put the <span class="grad">right email</span> in front of the<br>right person.</h1>
+    <p>Drop in your verified-emails file and your people export. EmailMatch joins them by domain, matches each email to the correct name, and gives you one clean CSV — no mismatches, no leftovers.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="step"><span class="num">1</span><h3>Verified emails CSV</h3></div>
+      <div class="hint">Expects <code>email</code> · <code>domain</code> · <code>status</code> · <code>score</code></div>
+      <label class="drop" id="dropV" for="fileV">
+        <span class="ic">📩</span>
+        <span class="txt">Click or drop your verified-emails CSV</span>
+      </label>
+      <input type="file" id="fileV" accept=".csv,text/csv" />
+    </div>
+    <div class="card">
+      <div class="step"><span class="num">2</span><h3>People export CSV</h3></div>
+      <div class="hint">Expects <code>first_name</code> · <code>last_name</code> · <code>org_website</code></div>
+      <label class="drop" id="dropP" for="fileP">
+        <span class="ic">👥</span>
+        <span class="txt">Click or drop your people export CSV</span>
+      </label>
+      <input type="file" id="fileP" accept=".csv,text/csv" />
+    </div>
+  </div>
+
+  <div class="controls">
+    <label class="opt">
+      <input type="checkbox" id="generic" />
+      Use role emails as fallback
+      <span class="help" title="If a person has no name-matched email, allow generic mailboxes like info@ or sales@ on their domain.">?</span>
+    </label>
+    <label class="opt">
+      Match strictness
+      <input type="range" id="minScore" min="40" max="100" value="60" step="5" />
+      <span class="v" id="minVal">60</span>
+      <span class="help" title="Higher = only assign emails that clearly match a person's name. Lower = allow looser matches.">?</span>
+    </label>
+  </div>
+
+  <div class="actions">
+    <button class="btn primary" id="run" disabled><span id="runLabel">Match emails</span></button>
+    <button class="btn ghost hide" id="download">⬇ Download matched CSV</button>
+  </div>
+  <div class="err" id="err"></div>
+
+  <section class="results" id="results">
+    <div class="stats">
+      <div class="stat good"><b id="sMatched">0</b><span>Matched · in output</span></div>
+      <div class="stat"><b id="sPeople">0</b><span>People read</span></div>
+      <div class="stat"><b id="sVerified">0</b><span>Verified emails</span></div>
+      <div class="stat mut"><b id="sUnmatched">0</b><span>Dropped · no match</span></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Matched preview</h3>
+        <input class="search" id="search" type="text" placeholder="Filter by name, company, email…" />
+      </div>
+      <div class="tscroll"><div id="preview"></div></div>
+    </div>
+  </section>
+
+  <footer>
+    Files never leave your device · processed locally with JavaScript ·
+    <a href="https://vercel.com" target="_blank" rel="noopener">deployable on Vercel</a>
+  </footer>
+</div>
+
+<script src="matcher.js"></script>
+<script>
+(function () {
+  var V = null, P = null, output = null, fields = null;
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (n) { return (n || 0).toLocaleString(); };
+
+  function wireDrop(dropId, inputId, onFile) {
+    var drop = $(dropId), input = $(inputId);
+    input.addEventListener("change", function () { if (input.files[0]) onFile(input.files[0], drop); });
+    ["dragover","dragenter"].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.add("over");});});
+    ["dragleave","drop"].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.remove("over");});});
+    drop.addEventListener("drop", function (ev) {
+      var f = ev.dataTransfer.files[0];
+      if (f) { input.files = ev.dataTransfer.files; onFile(f, drop); }
+    });
+  }
+
+  function parse(file, cb) {
+    Papa.parse(file, { header:true, skipEmptyLines:true,
+      complete:function(res){ cb(res); },
+      error:function(e){ showErr("Could not read “"+file.name+"”: "+e.message); } });
+  }
+
+  function setDrop(drop, file, rows) {
+    drop.classList.add("set");
+    drop.querySelector(".txt").innerHTML =
+      '<span class="fname">✓ '+file.name+'</span><span class="meta">'+fmt(rows)+' rows loaded — click to replace</span>';
+  }
+
+  wireDrop("dropV","fileV",function(file,drop){ parse(file,function(res){ V=res; setDrop(drop,file,res.data.length); ready(); }); });
+  wireDrop("dropP","fileP",function(file,drop){ parse(file,function(res){ P=res; setDrop(drop,file,res.data.length); ready(); }); });
+
+  function ready(){ $("run").disabled = !(V && P); showErr(""); }
+  function showErr(m){ $("err").textContent = m || ""; }
+
+  $("minScore").addEventListener("input", function(){ $("minVal").textContent = this.value; });
+
+  $("run").addEventListener("click", function () {
+    if (!V || !P) return;
+    showErr("");
+    var btn = $("run");
+    btn.disabled = true;
+    $("runLabel").innerHTML = '<span class="spin"></span> Matching…';
+
+    setTimeout(function () {
+      try {
+        fields = P.meta.fields;
+        if (!fields || !fields.length) throw new Error("The people CSV has no header row.");
+        var opts = { minScore:Number($("minScore").value), includeGeneric:$("generic").checked };
+        var res = Matcher.matchEmails(V.data, P.data, opts);
+        output = Matcher.buildOutput(P.data, fields, res.assignments);
+
+        animate($("sMatched"), res.stats.matched);
+        animate($("sPeople"), res.stats.people);
+        animate($("sVerified"), res.stats.verified);
+        animate($("sUnmatched"), res.stats.unmatched);
+
+        $("results").classList.add("show");
+        $("download").classList.remove("hide");
+        renderPreview(output, "");
+        $("results").scrollIntoView({ behavior:"smooth", block:"start" });
+      } catch (e) {
+        showErr(e.message || String(e));
+      } finally {
+        btn.disabled = false;
+        $("runLabel").textContent = "Re-run match";
+      }
+    }, 30);
+  });
+
+  function animate(el, to) {
+    var start = 0, t0 = null, dur = 550;
+    function step(ts){ if(!t0)t0=ts; var p=Math.min(1,(ts-t0)/dur); el.textContent = fmt(Math.round((start+(to-start)*(1-Math.pow(1-p,3))))); if(p<1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  }
+
+  var previewCols;
+  function renderPreview(rows, q) {
+    previewCols = ["name","title","org_name","email","email_status"].filter(function(c){return fields.indexOf(c)>-1;});
+    if (!previewCols.length) previewCols = fields.slice(0,5);
+    q = (q||"").toLowerCase();
+    var filtered = q ? rows.filter(function(r){ return previewCols.some(function(c){ return String(r[c]||"").toLowerCase().indexOf(q)>-1; }); }) : rows;
+
+    if (!filtered.length) { $("preview").innerHTML = '<div class="empty">No rows match “'+esc(q)+'”.</div>'; return; }
+    var shown = filtered.slice(0, 60);
+    var head = "<thead><tr>"+previewCols.map(function(c){return "<th>"+labelize(c)+"</th>";}).join("")+"</tr></thead>";
+    var body = "<tbody>"+shown.map(function(r){
+      return "<tr>"+previewCols.map(function(c){
+        var v = r[c]==null?"":String(r[c]);
+        if (c==="email") return '<td class="em"><a href="mailto:'+esc(v)+'">'+esc(v)+'</a></td>';
+        if (c==="email_status") { var t=v.toLowerCase(); return '<td><span class="tag '+t+'">'+esc(v||"—")+'</span></td>'; }
+        if (v.length>70) v=v.slice(0,67)+"…";
+        return "<td title='"+esc(r[c]||"")+"'>"+esc(v)+"</td>";
+      }).join("")+"</tr>";
+    }).join("")+"</tbody>";
+    var note = filtered.length>shown.length ? '<div class="empty" style="border-top:1px solid var(--line)">Showing 60 of '+fmt(filtered.length)+' matched rows — download for the full set.</div>' : "";
+    $("preview").innerHTML = "<table>"+head+body+"</table>"+note;
+  }
+
+  $("search").addEventListener("input", function(){ if(output) renderPreview(output, this.value); });
+
+  function labelize(c){ return c.replace(/_/g," ").replace(/\b\w/g,function(m){return m.toUpperCase();}); }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+
+  $("download").addEventListener("click", function () {
+    if (!output) return;
+    var csv = Papa.unparse({ fields:fields, data:output });
+    var blob = new Blob(["﻿"+csv], { type:"text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "matched-emails.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+})();
+</script>
+</body>
+</html>

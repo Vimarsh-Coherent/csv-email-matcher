@@ -1,0 +1,13 @@
+{
+  "name": "csv-email-matcher",
+  "version": "1.0.0",
+  "description": "Match verified emails to the right people and export a clean CSV — static, in-browser.",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "papaparse": "^5.5.4"
+  }
+}
