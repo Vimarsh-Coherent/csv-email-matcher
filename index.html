@@ -142,6 +142,11 @@
       <span class="help" title="If a person has no name-matched email, allow generic mailboxes like info@ or sales@ on their domain.">?</span>
     </label>
     <label class="opt">
+      <input type="checkbox" id="explode" />
+      One row per email
+      <span class="help" title="If a person has multiple matching emails, output a separate row for each. Off = one row per person with every email listed in the all_emails column.">?</span>
+    </label>
+    <label class="opt">
       Match strictness
       <input type="range" id="minScore" min="40" max="100" value="60" step="5" />
       <span class="v" id="minVal">60</span>
@@ -157,9 +162,9 @@
 
   <section class="results" id="results">
     <div class="stats">
-      <div class="stat good"><b id="sMatched">0</b><span>Matched · in output</span></div>
+      <div class="stat good"><b id="sMatched">0</b><span>People matched</span></div>
+      <div class="stat good"><b id="sEmails">0</b><span>Emails assigned</span></div>
       <div class="stat"><b id="sPeople">0</b><span>People read</span></div>
-      <div class="stat"><b id="sVerified">0</b><span>Verified emails</span></div>
       <div class="stat mut"><b id="sUnmatched">0</b><span>Dropped · no match</span></div>
     </div>
 
@@ -229,11 +234,11 @@
         if (!fields || !fields.length) throw new Error("The people CSV has no header row.");
         var opts = { minScore:Number($("minScore").value), includeGeneric:$("generic").checked };
         var res = Matcher.matchEmails(V.data, P.data, opts);
-        output = Matcher.buildOutput(P.data, fields, res.assignments);
+        output = Matcher.buildOutput(P.data, fields, res.assignments, { explode: $("explode").checked });
 
         animate($("sMatched"), res.stats.matched);
+        animate($("sEmails"), res.stats.emails);
         animate($("sPeople"), res.stats.people);
-        animate($("sVerified"), res.stats.verified);
         animate($("sUnmatched"), res.stats.unmatched);
 
         $("results").classList.add("show");
@@ -257,7 +262,7 @@
 
   var previewCols;
   function renderPreview(rows, q) {
-    previewCols = ["name","title","org_name","email","email_status"].filter(function(c){return fields.indexOf(c)>-1;});
+    previewCols = ["name","title","email","all_emails","email_status"].filter(function(c){return fields.indexOf(c)>-1;});
     if (!previewCols.length) previewCols = fields.slice(0,5);
     q = (q||"").toLowerCase();
     var filtered = q ? rows.filter(function(r){ return previewCols.some(function(c){ return String(r[c]||"").toLowerCase().indexOf(q)>-1; }); }) : rows;

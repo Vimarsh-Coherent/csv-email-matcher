@@ -137,39 +137,43 @@
       peopleByDomain.get(dom).push(i);
     });
 
-    var assignments = new Map();
+    var assignments = new Map(); // personIndex -> [{email,status,score,reason,ns}, ...]
 
     peopleByDomain.forEach(function (idxs, dom) {
       var emails = byDomain.get(dom);
       if (!emails || !emails.length) return;
 
-      // Build all candidate (person, email) pairs above threshold.
-      var pairs = [];
-      idxs.forEach(function (pi) {
-        var p = people[pi];
-        emails.forEach(function (e) {
+      // Assign each email to the single person whose name it best matches.
+      // A person can collect several emails, but one email is never handed
+      // to two different people.
+      emails.forEach(function (e) {
+        var isGeneric = GENERIC.has(e.local);
+        var bestPi = -1, bestNs = -1;
+        idxs.forEach(function (pi) {
+          var p = people[pi];
           var ns = nameScore(p.first_name, p.last_name, e.local);
-          var isGeneric = GENERIC.has(e.local);
-          if (ns < minScore && !(includeGeneric && isGeneric && ns >= GENERIC_SCORE)) return;
-          pairs.push({ pi: pi, e: e, ns: ns, isGeneric: isGeneric });
+          if (ns > bestNs) { bestNs = ns; bestPi = pi; }
+        });
+        if (bestPi < 0) return;
+        var ok = bestNs >= minScore || (includeGeneric && isGeneric && bestNs >= GENERIC_SCORE);
+        if (!ok) return;
+        if (!assignments.has(bestPi)) assignments.set(bestPi, []);
+        assignments.get(bestPi).push({
+          email: e.email, status: e.status, score: e.score, reason: e.reason, ns: bestNs,
         });
       });
+    });
 
-      // Greedy: strongest name match first, then verified status, then score.
-      pairs.sort(function (a, b) {
+    // Order each person's emails: strongest name match, then status, then score.
+    var totalEmails = 0;
+    assignments.forEach(function (list) {
+      list.sort(function (a, b) {
         if (b.ns !== a.ns) return b.ns - a.ns;
-        var sr = statusRank(b.e.status) - statusRank(a.e.status);
+        var sr = statusRank(b.status) - statusRank(a.status);
         if (sr) return sr;
-        return b.e.score - a.e.score;
+        return b.score - a.score;
       });
-
-      var usedEmail = new Set();
-      pairs.forEach(function (pr) {
-        if (assignments.has(pr.pi)) return;
-        if (usedEmail.has(pr.e.email)) return;
-        assignments.set(pr.pi, pr.e);
-        usedEmail.add(pr.e.email);
-      });
+      totalEmails += list.length;
     });
 
     return {
@@ -178,6 +182,7 @@
         people: people.length,
         verified: seen.size,
         matched: assignments.size,
+        emails: totalEmails,
         unmatched: people.length - assignments.size,
       },
     };
@@ -187,18 +192,28 @@
    * Produce output rows = matched people only, all original columns kept,
    * with email (and email_status) overwritten by the matched verified email.
    */
-  function buildOutput(people, fields, assignments) {
+  function buildOutput(people, fields, assignments, opts) {
+    opts = opts || {};
+    var explode = !!opts.explode; // one row per email instead of one row per person
+    var hasAllEmails = fields.indexOf("all_emails") > -1;
     var out = [];
     people.forEach(function (p, i) {
-      var e = assignments.get(i);
-      if (!e) return;
-      var row = {};
-      fields.forEach(function (f) { row[f] = p[f] != null ? p[f] : ""; });
-      row.email = e.email;
-      if ("email_status" in row) row.email_status = e.status;
-      if ("email_true_status" in row) row.email_true_status = e.status;
-      if ("all_emails" in row) row.all_emails = e.email;
-      out.push(row);
+      var list = assignments.get(i);
+      if (!list || !list.length) return;
+      var allEmails = list.map(function (x) { return x.email; }).join(", ");
+
+      function makeRow(primary) {
+        var row = {};
+        fields.forEach(function (f) { row[f] = p[f] != null ? p[f] : ""; });
+        row.email = primary.email;
+        if ("email_status" in row) row.email_status = primary.status;
+        if ("email_true_status" in row) row.email_true_status = primary.status;
+        if (hasAllEmails) row.all_emails = allEmails;
+        return row;
+      }
+
+      if (explode) list.forEach(function (item) { out.push(makeRow(item)); });
+      else out.push(makeRow(list[0]));
     });
     return out;
   }

@@ -17,7 +17,18 @@ const p = load(peoplePath);
 const res = M.matchEmails(v.data, p.data, { minScore: 60, includeGeneric: false });
 console.log("STATS:", res.stats);
 
-const out = M.buildOutput(p.data, p.meta.fields, res.assignments);
+const out = M.buildOutput(p.data, p.meta.fields, res.assignments, { explode: false });
+
+console.log("\nPEOPLE WITH 2+ EMAILS:");
+let multi = 0;
+for (let i = 0; i < p.data.length; i++) {
+  const list = res.assignments.get(i);
+  if (list && list.length > 1) {
+    multi++;
+    if (multi <= 15) console.log(`  ${(p.data[i].name || "").padEnd(22)} -> ${list.map((x) => x.email).join(", ")}`);
+  }
+}
+console.log(`  (total people with multiple emails: ${multi})`);
 
 // Show a sample of matches
 console.log("\nSAMPLE MATCHES:");
